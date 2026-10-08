@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    // Pre-bundle the lazily loaded map libs so Vite doesn't re-optimize mid-session
+    // (re-optimizing produced two React copies -> "Cannot read properties of null (useState)").
+    optimizeDeps: { include: ["leaflet", "react-leaflet"] },
+  },
 });
