@@ -6,7 +6,7 @@ import { fetchMyRoles } from "@/lib/auth";
 type Search = { denied?: number };
 
 export const Route = createFileRoute("/admin-login")({
-  validateSearch: (s: Record<string, unknown>): Search => (s.denied ? { denied: 1 } : {}),
+  validateSearch: (s: Record<string, unknown>): Search => (s["denied"] ? { denied: 1 } : {}),
   head: () => ({
     meta: [
       { title: "Admin Portal Login – ROAD-TRACK" },
