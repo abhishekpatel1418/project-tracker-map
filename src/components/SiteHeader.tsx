@@ -7,7 +7,6 @@ const NAV = [
   { to: "/projects", label: "Explore Projects" },
   { to: "/report", label: "Report Issue" },
   { to: "/track", label: "Track Complaint" },
-  { to: "/admin", label: "Admin" },
 ] as const;
 
 export function Logo() {
