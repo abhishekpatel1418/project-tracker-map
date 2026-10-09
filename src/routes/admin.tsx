@@ -1,10 +1,20 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { DemoBadge, StatusPill, VerificationBadge } from "@/components/badges";
 import { STATUSES, loadComplaints, updateStatus, type Complaint, type ComplaintStatus } from "@/lib/complaints";
 import { PROJECTS, formatDate, formatLakh } from "@/lib/demo-data";
+import { supabase } from "@/integrations/supabase/client";
+import { ROLE_LABELS, fetchMyRoles } from "@/lib/auth";
 
 export const Route = createFileRoute("/admin")({
+  ssr: false,
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) throw redirect({ to: "/admin-login" });
+    const roles = await fetchMyRoles();
+    if (roles.length === 0) throw redirect({ to: "/admin-login", search: { denied: 1 } });
+    return { roles, adminEmail: data.user.email ?? "" };
+  },
   head: () => ({
     meta: [
       { title: "Admin Dashboard – ROAD-TRACK" },
@@ -18,6 +28,7 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminPage() {
+  const { roles, adminEmail } = Route.useRouteContext();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   useEffect(() => setComplaints(loadComplaints()), []);
   const pending = complaints.filter((c) => c.status !== "Resolved").length;
@@ -34,7 +45,11 @@ function AdminPage() {
         <h1 className="text-2xl font-bold text-primary">Admin Dashboard</h1>
         <DemoBadge />
       </div>
-      <p className="text-sm text-muted-foreground">Prototype interface — no access control yet. Officials sign in at <Link to="/admin-login" className="text-primary hover:underline">/admin-login</Link>.</p>
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <span>Signed in as {adminEmail} · {roles.map((r) => ROLE_LABELS[r]).join(", ")}</span>
+        <button className="text-primary hover:underline" onClick={async () => { await supabase.auth.signOut(); window.location.assign("/admin-login"); }}>Log out</button>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">Department-level data separation is not enforced yet — complaints are still stored on this device until the complaint database is added.</p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map(([l, v], i) => (

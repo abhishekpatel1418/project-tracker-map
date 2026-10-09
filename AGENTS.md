@@ -12,3 +12,4 @@
 ## ROAD-TRACK decisions
 - Demo projects live in src/lib/demo-data.ts and complaints in src/lib/complaints.ts (localStorage) — single swap points for a future database.
 - The map is a browser-only lazy component (src/components/ProjectMap.tsx, Leaflet + OSM) — Leaflet breaks SSR; swap tiles there for Mapbox later.
+- Admin access comes only from the public.user_roles table (no client write policies); /admin checks it in a client-only beforeLoad and redirects to /admin-login — never trust roles from forms or user metadata.

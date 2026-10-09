@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useSession } from "@/lib/auth";
 
 const NAV = [
   { to: "/", label: "Home" },
@@ -25,6 +27,7 @@ export function Logo() {
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const { session } = useSession();
   const link = "rounded px-3 py-2 text-sm font-medium text-muted-foreground hover:text-primary";
   const active = { className: "rounded px-3 py-2 text-sm font-semibold text-primary bg-secondary" };
   return (
@@ -36,7 +39,11 @@ export function SiteHeader() {
           {NAV.map((n) => (
             <Link key={n.to} to={n.to} className={link} activeProps={active} activeOptions={{ exact: n.to === "/" }}>{n.label}</Link>
           ))}
-          <Link to="/login" className="btn-primary ml-2 !py-1.5">Login</Link>
+          {session ? (
+            <button className="btn-outline ml-2 !py-1.5" onClick={() => supabase.auth.signOut()} title={session.user.email}>Log out</button>
+          ) : (
+            <Link to="/login" className="btn-primary ml-2 !py-1.5">Login</Link>
+          )}
         </nav>
         <button className="md:hidden" onClick={() => setOpen(!open)} aria-label="Menu">{open ? <X /> : <Menu />}</button>
       </div>
@@ -45,7 +52,11 @@ export function SiteHeader() {
           {NAV.map((n) => (
             <Link key={n.to} to={n.to} onClick={() => setOpen(false)} className={link} activeProps={active} activeOptions={{ exact: n.to === "/" }}>{n.label}</Link>
           ))}
-          <Link to="/login" onClick={() => setOpen(false)} className="btn-primary my-2">Login</Link>
+          {session ? (
+            <button onClick={() => { setOpen(false); supabase.auth.signOut(); }} className="btn-outline my-2">Log out</button>
+          ) : (
+            <Link to="/login" onClick={() => setOpen(false)} className="btn-primary my-2">Login</Link>
+          )}
         </nav>
       )}
     </header>
