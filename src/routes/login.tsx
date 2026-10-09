@@ -37,7 +37,7 @@ function LoginPage() {
     <div className="mx-auto max-w-md px-4 py-16">
       <div className="rounded-lg border bg-card p-8 shadow-sm">
         <DemoBadge />
-        <h1 className="mt-4 text-2xl font-bold text-primary">{mode === "login" ? "Login" : "Create account"}</h1>
+        <h1 className="mt-4 text-2xl font-bold text-primary">{mode === "login" ? "Citizen Login" : "Create citizen account"}</h1>
         <div className="mt-4 grid grid-cols-2 rounded bg-muted p-1 text-sm">
           {(["login", "signup"] as const).map((m) => (
             <button key={m} onClick={() => { setMode(m); setDone(""); setErrors({}); }} className={`rounded py-1.5 font-medium ${mode === m ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>

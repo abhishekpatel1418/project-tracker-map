@@ -34,7 +34,7 @@ function AdminPage() {
         <h1 className="text-2xl font-bold text-primary">Admin Dashboard</h1>
         <DemoBadge />
       </div>
-      <p className="text-sm text-muted-foreground">Prototype interface — no access control yet.</p>
+      <p className="text-sm text-muted-foreground">Prototype interface — no access control yet. Officials sign in at <Link to="/admin-login" className="text-primary hover:underline">/admin-login</Link>.</p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map(([l, v], i) => (
