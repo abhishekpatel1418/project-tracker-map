@@ -51,7 +51,7 @@ export const formatDate = (d: string | Date | null | undefined) => {
   let date: Date;
   if (typeof d === "string") {
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-      const [y, m, day] = d.split("-").map(Number);
+      const [y = 0, m = 1, day = 1] = d.split("-").map(Number);
       date = new Date(y, m - 1, day);
     } else {
       date = new Date(d);
@@ -69,7 +69,7 @@ export const formatRelativeTime = (d: string | Date | null | undefined) => {
     let date: Date;
     if (typeof d === "string") {
       if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-        const [y, m, day] = d.split("-").map(Number);
+        const [y = 0, m = 1, day = 1] = d.split("-").map(Number);
         date = new Date(y, m - 1, day);
       } else {
         date = new Date(d);

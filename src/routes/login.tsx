@@ -1,9 +1,14 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/lib/auth";
 
 export const Route = createFileRoute("/login")({
+  ssr: false,
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) throw redirect({ to: "/" });
+  },
   head: () => ({
     meta: [
       { title: "Citizen Login or Sign Up – ROAD-TRACK" },
@@ -25,6 +30,12 @@ function LoginPage() {
   const [errors, setErrors] = useState<{ [k in "email" | "pw" | "pw2"]?: string }>({});
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (session) {
+      navigate({ to: "/" });
+    }
+  }, [session, navigate]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,15 +62,7 @@ function LoginPage() {
   };
 
   if (session) {
-    return (
-      <div className="mx-auto max-w-md px-4 py-16">
-        <div className="rounded-lg border bg-card p-8 shadow-sm">
-          <h1 className="text-2xl font-bold text-primary">You're signed in</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{session.user.email}</p>
-          <button className="btn-outline mt-6" onClick={() => supabase.auth.signOut()}>Log out</button>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (

@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,19 +28,26 @@ export function Logo() {
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const { session } = useSession();
+  const navigate = useNavigate();
   const link = "rounded px-3 py-2 text-sm font-medium text-muted-foreground hover:text-primary";
   const active = { className: "rounded px-3 py-2 text-sm font-semibold text-primary bg-secondary" };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/login" });
+  };
+
   return (
     <header className="sticky top-0 z-[1000] border-b bg-card/95 backdrop-blur">
       <div className="h-1 bg-accent" />
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
         <Logo />
         <nav className="hidden items-center gap-1 md:flex">
-          {NAV.map((n) => (
+          {session && NAV.map((n) => (
             <Link key={n.to} to={n.to} className={link} activeProps={active} activeOptions={{ exact: n.to === "/" }}>{n.label}</Link>
           ))}
           {session ? (
-            <button className="btn-outline ml-2 !py-1.5" onClick={() => supabase.auth.signOut()} title={session.user.email}>Log out</button>
+            <button className="btn-outline ml-2 !py-1.5" onClick={handleLogout} title={session.user.email}>Log out</button>
           ) : (
             <Link to="/login" className="btn-primary ml-2 !py-1.5">Login</Link>
           )}
@@ -49,11 +56,11 @@ export function SiteHeader() {
       </div>
       {open && (
         <nav className="flex flex-col border-t px-4 py-2 md:hidden">
-          {NAV.map((n) => (
+          {session && NAV.map((n) => (
             <Link key={n.to} to={n.to} onClick={() => setOpen(false)} className={link} activeProps={active} activeOptions={{ exact: n.to === "/" }}>{n.label}</Link>
           ))}
           {session ? (
-            <button onClick={() => { setOpen(false); supabase.auth.signOut(); }} className="btn-outline my-2">Log out</button>
+            <button onClick={() => { setOpen(false); void handleLogout(); }} className="btn-outline my-2">Log out</button>
           ) : (
             <Link to="/login" onClick={() => setOpen(false)} className="btn-primary my-2">Login</Link>
           )}

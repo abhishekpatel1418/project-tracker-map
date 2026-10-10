@@ -4,10 +4,13 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { LocateFixed, Search } from "lucide-react";
 import { DemoBadge, StatusPill, VerificationBadge } from "@/components/badges";
 import { DEFAULT_CENTER, DEPARTMENTS, DEPT_COLOR, PROJECTS, distanceKm, formatDate, type Department } from "@/lib/demo-data";
+import { requireAuth } from "@/lib/auth";
 
 const ProjectMap = lazy(() => import("@/components/ProjectMap"));
 
 export const Route = createFileRoute("/projects/")({
+  ssr: false,
+  beforeLoad: requireAuth,
   head: () => ({
     meta: [
       { title: "Road Project Map – ROAD-TRACK" },

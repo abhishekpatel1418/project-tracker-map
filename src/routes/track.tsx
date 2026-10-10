@@ -4,8 +4,11 @@ import { Check, Search } from "lucide-react";
 import { DemoBadge, StatusPill } from "@/components/badges";
 import { STATUSES, findComplaint, type Complaint } from "@/lib/complaints";
 import { formatDate, formatRelativeTime } from "@/lib/demo-data";
+import { requireAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/track")({
+  ssr: false,
+  beforeLoad: requireAuth,
   validateSearch: (s: Record<string, unknown>): { id?: string } => (typeof s["id"] === "string" ? { id: s["id"] } : {}),
   head: () => ({
     meta: [
