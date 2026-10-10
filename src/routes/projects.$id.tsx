@@ -2,8 +2,11 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { DemoBadge, StatusPill, VerificationBadge } from "@/components/badges";
 import { formatDate, formatLakh, formatRelativeTime, getProject } from "@/lib/demo-data";
+import { requireAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/projects/$id")({
+  ssr: false,
+  beforeLoad: requireAuth,
   loader: ({ params }) => {
     const project = getProject(params.id);
     if (!project) throw notFound();
