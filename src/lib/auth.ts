@@ -14,10 +14,14 @@ export const ROLE_LABELS: Record<AppRole, string> = {
 };
 
 /** Guard for protected user-facing routes: redirects unauthenticated users to /login. */
-export async function requireAuth() {
+export async function requireAuth(ctx?: { location?: { pathname: string } }) {
   const { data } = await supabase.auth.getSession();
   if (!data.session) {
-    throw redirect({ to: "/login" });
+    const target = ctx?.location?.pathname;
+    throw redirect({
+      to: "/login",
+      search: target && target !== "/" ? { redirect: target } : undefined,
+    });
   }
   return { session: data.session };
 }
