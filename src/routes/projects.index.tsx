@@ -3,7 +3,7 @@ import { ClientOnly } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { LocateFixed, Search } from "lucide-react";
 import { DemoBadge, StatusPill, VerificationBadge } from "@/components/badges";
-import { DEFAULT_CENTER, DEPARTMENTS, DEPT_COLOR, PROJECTS, distanceKm, type Department } from "@/lib/demo-data";
+import { DEFAULT_CENTER, DEPARTMENTS, DEPT_COLOR, PROJECTS, distanceKm, formatDate, type Department } from "@/lib/demo-data";
 
 const ProjectMap = lazy(() => import("@/components/ProjectMap"));
 
@@ -88,6 +88,10 @@ function ProjectsPage() {
               </div>
               <h3 className="mt-1 font-semibold leading-snug">{p.name}</h3>
               <div className="mt-2 flex flex-wrap gap-1.5"><StatusPill s={p.status} /><VerificationBadge v={p.verification} /></div>
+              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                <span>{p.status === "Completed" ? "Completed" : "Target"}: {formatDate(p.targetDate)}</span>
+                <span>{p.progress}% done</span>
+              </div>
               <div className="mt-3 flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase text-demo-foreground">Demo / Prototype Data</span>
                 <Link to="/projects/$id" params={{ id: p.id }} className="text-sm font-semibold text-primary underline-offset-2 hover:underline">Details →</Link>

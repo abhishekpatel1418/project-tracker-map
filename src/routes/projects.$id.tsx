@@ -1,7 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { DemoBadge, StatusPill, VerificationBadge } from "@/components/badges";
-import { formatDate, formatLakh, getProject } from "@/lib/demo-data";
+import { formatDate, formatLakh, formatRelativeTime, getProject } from "@/lib/demo-data";
 
 export const Route = createFileRoute("/projects/$id")({
   loader: ({ params }) => {
@@ -40,7 +40,16 @@ function ProjectDetail() {
     ["Amount Spent", formatLakh(p.spentLakh)],
     ["Approval / Sanction Date", formatDate(p.sanctionDate)],
     ["Work Start Date", formatDate(p.startDate)],
-    ["Target Completion Date", formatDate(p.targetDate)],
+    ["Target Completion Date", (
+      <span>
+        {formatDate(p.targetDate)}
+        {p.status !== "Completed" && (
+          <span className="ml-2 text-xs text-muted-foreground font-normal">
+            ({formatRelativeTime(p.targetDate)})
+          </span>
+        )}
+      </span>
+    )],
     ["Current Status", <StatusPill s={p.status} />],
     ["Data Verification Status", <VerificationBadge v={p.verification} />],
     ["District / Length", `${p.district} · ${p.lengthKm} km`],

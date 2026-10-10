@@ -2,7 +2,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { DemoBadge, StatusPill, VerificationBadge } from "@/components/badges";
 import { STATUSES, loadComplaints, updateStatus, type Complaint, type ComplaintStatus } from "@/lib/complaints";
-import { PROJECTS, formatDate, formatLakh } from "@/lib/demo-data";
+import { PROJECTS, formatDate, formatLakh, formatRelativeTime } from "@/lib/demo-data";
 import { supabase } from "@/integrations/supabase/client";
 import { ROLE_LABELS, fetchMyRoles } from "@/lib/auth";
 
@@ -71,7 +71,10 @@ function AdminPage() {
                   <td className="p-3 font-mono text-xs">{c.trackingId}</td>
                   <td>{c.issueType}</td>
                   <td className="max-w-56 truncate">{c.location}</td>
-                  <td>{formatDate(c.submittedAt)}</td>
+                  <td>
+                    <div>{formatDate(c.submittedAt)}</div>
+                    <div className="text-xs text-muted-foreground">{formatRelativeTime(c.submittedAt)}</div>
+                  </td>
                   <td><StatusPill s={c.status} /></td>
                   <td className="pr-3">
                     <select className="input-field !w-auto !py-1" value={c.status} onChange={(e) => setComplaints(updateStatus(c.trackingId, e.target.value as ComplaintStatus))}>
