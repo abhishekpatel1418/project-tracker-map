@@ -83,6 +83,7 @@ describe("Admin Route Authentication & Authorization Guards", () => {
       roles: ["pwd_officer"],
       adminEmail: "pwd.officer@roadtrack.gov.in",
       userId: "officer-789",
+      isDemoMode: false,
     });
   });
 });
@@ -337,3 +338,169 @@ describe("Admin Dashboard Visual & Functional Layout", () => {
   });
 });
 
+describe("Safe Demo Admin Mode for Presentations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it("beforeLoad grants Central Admin demo session when ?demo=1 is in search without calling Supabase auth", async () => {
+    const beforeLoad = Route.options.beforeLoad as any;
+    const ctx = await beforeLoad({ search: { demo: 1 } });
+
+    expect(ctx).toEqual({
+      roles: ["central_admin"],
+      adminEmail: "mentor.demo@roadtrack.gov.in (Demo Mode)",
+      userId: "demo-mode-session",
+      isDemoMode: true,
+    });
+    expect(supabase.auth.getUser).not.toHaveBeenCalled();
+  });
+
+  it("renders the persistent 'DEMO DATA — NOT LIVE CITIZEN RECORDS' banner, badge, and exit demo link", async () => {
+    const demoContext = {
+      roles: ["central_admin"] as authModule.AppRole[],
+      adminEmail: "mentor.demo@roadtrack.gov.in (Demo Mode)",
+      userId: "demo-mode-session",
+      isDemoMode: true,
+    };
+
+    render(<AdminPage testContext={demoContext} testSearch={{ demo: 1 }} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/DEMO ADMIN MODE/i)).toBeInTheDocument();
+    });
+
+    // Check persistent top banner
+    expect(screen.getAllByText(/DEMO DATA — NOT LIVE CITIZEN RECORDS/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Safe evaluation sandbox for mentors/i)).toBeInTheDocument();
+
+    // Check Exit Demo links and buttons
+    const exitLinks = screen.getAllByRole("link", { name: /Exit Demo/i });
+    expect(exitLinks.length).toBeGreaterThan(0);
+    expect(exitLinks[0]).toHaveAttribute("href", "/admin-login");
+  });
+
+  it("renders department jurisdiction breakdown cards for State PWD, NHAI, and PMGSY", async () => {
+    const demoContext = {
+      roles: ["central_admin"] as authModule.AppRole[],
+      adminEmail: "mentor.demo@roadtrack.gov.in (Demo Mode)",
+      userId: "demo-mode-session",
+      isDemoMode: true,
+    };
+
+    render(<AdminPage testContext={demoContext} testSearch={{ demo: 1 }} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Department Jurisdiction Breakdown")).toBeInTheDocument();
+    });
+
+    // Verify all 3 departments are shown
+    expect(screen.getByText("State PWD")).toBeInTheDocument();
+    expect(screen.getByText("NHAI")).toBeInTheDocument();
+    expect(screen.getByText("PMGSY")).toBeInTheDocument();
+  });
+
+  it("loads isolated fictional complaints in demo mode without querying Supabase complaints table", async () => {
+    const demoContext = {
+      roles: ["central_admin"] as authModule.AppRole[],
+      adminEmail: "mentor.demo@roadtrack.gov.in (Demo Mode)",
+      userId: "demo-mode-session",
+      isDemoMode: true,
+    };
+
+    render(<AdminPage testContext={demoContext} testSearch={{ demo: 1 }} />);
+
+    // Switch to Complaints tab
+    const complaintsTab = screen.getByRole("button", { name: /Complaints/i });
+    fireEvent.click(complaintsTab);
+
+    await waitFor(() => {
+      expect(screen.getByText("RT-DEMO-261011-PWD01")).toBeInTheDocument();
+      expect(screen.getByText("RT-DEMO-261011-NHAI02")).toBeInTheDocument();
+      expect(screen.getByText("RT-DEMO-261011-PMGSY03")).toBeInTheDocument();
+    });
+
+    // Ensure supabase.from("complaints") was NOT called
+    expect(supabase.from).not.toHaveBeenCalledWith("complaints");
+  });
+
+  it("updates complaint status in local storage only and does NOT call Supabase RPC in demo mode", async () => {
+    const demoContext = {
+      roles: ["central_admin"] as authModule.AppRole[],
+      adminEmail: "mentor.demo@roadtrack.gov.in (Demo Mode)",
+      userId: "demo-mode-session",
+      isDemoMode: true,
+    };
+
+    render(<AdminPage testContext={demoContext} testSearch={{ demo: 1 }} />);
+
+    // Switch to Complaints tab
+    fireEvent.click(screen.getByRole("button", { name: /Complaints/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("RT-DEMO-261011-PWD01")).toBeInTheDocument();
+    });
+
+    // Review first complaint (RT-DEMO-261011-PWD01 is "In Progress")
+    const reviewButtons = screen.getAllByRole("button", { name: /Review/i });
+    fireEvent.click(reviewButtons[0]);
+
+    // Fill in public note and select Resolved
+    const publicNoteInput = screen.getByPlaceholderText(/e\.g\. Field inspection scheduled/i);
+    fireEvent.change(publicNoteInput, { target: { value: "Demo hot-mix repair completed on site." } });
+
+    const statusSelect = screen.getByLabelText(/New Workflow Status/i);
+    fireEvent.change(statusSelect, { target: { value: "Resolved" } });
+
+    const resSummaryInput = screen.getByPlaceholderText(/e\.g\. Road surface patched/i);
+    fireEvent.change(resSummaryInput, { target: { value: "Full bituminous surface seal applied." } });
+
+    const submitBtn = screen.getByRole("button", { name: /Confirm Status Transition/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Zero Supabase writes/i)).toBeInTheDocument();
+    });
+
+    // Ensure Supabase RPC was never called
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("generates local demo invitation codes in demo mode without Supabase writes", async () => {
+    const demoContext = {
+      roles: ["central_admin"] as authModule.AppRole[],
+      adminEmail: "mentor.demo@roadtrack.gov.in (Demo Mode)",
+      userId: "demo-mode-session",
+      isDemoMode: true,
+    };
+
+    render(<AdminPage testContext={demoContext} testSearch={{ demo: 1 }} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Total Complaints")).toBeInTheDocument();
+    });
+
+    // Switch to Security tab
+    const securityTab = screen.getByRole("button", { name: /Jurisdiction & RLS/i });
+    fireEvent.click(securityTab);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Officer Invitation & Role Provisioning/i)).toBeInTheDocument();
+    });
+
+    // Enter email and submit
+    const emailInput = screen.getByPlaceholderText("officer@department.gov.in");
+    fireEvent.change(emailInput, { target: { value: "demo.engineer@statepwd.gov.in" } });
+
+    fireEvent.submit(emailInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/One-Time Officer Activation Code Generated/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/DEMO-INV-/i).length).toBeGreaterThan(0);
+    });
+
+    // Ensure Supabase RPC was never called
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+});

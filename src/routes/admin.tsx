@@ -29,21 +29,41 @@ import {
   Calendar,
   Image as ImageIcon,
   Video as VideoIcon,
+  Sparkles,
 } from "lucide-react";
 import { DemoBadge, StatusPill, VerificationBadge } from "@/components/badges";
 import { STATUSES, loadComplaints, updateStatus, type Complaint, type ComplaintStatus, type IssueType } from "@/lib/complaints";
 import { PROJECTS, formatDate, formatLakh, formatRelativeTime, type Project, type Department } from "@/lib/demo-data";
+import {
+  loadDemoAdminComplaints,
+  updateDemoAdminComplaintStatus,
+  getDepartmentSummaries,
+  resetDemoAdminComplaints,
+  type DemoAdminComplaint,
+  type DepartmentSummary,
+} from "@/lib/demo-admin-data";
 import { supabase } from "@/integrations/supabase/client";
 import { ROLE_LABELS, fetchMyRoles, type AppRole } from "@/lib/auth";
 
+type AdminSearch = { demo?: number };
+
 export const Route = createFileRoute("/admin")({
   ssr: false,
-  beforeLoad: async () => {
+  validateSearch: (s: Record<string, unknown>): AdminSearch => (s["demo"] ? { demo: 1 } : {}),
+  beforeLoad: async ({ search }: { search?: AdminSearch } = {}) => {
+    if (search?.demo) {
+      return {
+        roles: ["central_admin"] as AppRole[],
+        adminEmail: "mentor.demo@roadtrack.gov.in (Demo Mode)",
+        userId: "demo-mode-session",
+        isDemoMode: true,
+      };
+    }
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/admin-login" });
     const roles = await fetchMyRoles();
     if (roles.length === 0) throw redirect({ to: "/admin-login", search: { denied: 1 } });
-    return { roles, adminEmail: data.user.email ?? "", userId: data.user.id };
+    return { roles, adminEmail: data.user.email ?? "", userId: data.user.id, isDemoMode: false };
   },
   head: () => ({
     meta: [
@@ -102,11 +122,32 @@ export interface AdminPageProps {
     roles: AppRole[];
     adminEmail: string;
     userId: string;
+    isDemoMode?: boolean;
   };
+  testSearch?: AdminSearch;
 }
 
-export function AdminPage({ testContext }: AdminPageProps = {}) {
-  const context = testContext ?? Route.useRouteContext();
+export function AdminPage({ testContext, testSearch }: AdminPageProps = {}) {
+  let context: any;
+  try {
+    context = testContext ?? Route.useRouteContext();
+  } catch {
+    context = testContext ?? {
+      roles: ["central_admin"],
+      adminEmail: "mentor.demo@roadtrack.gov.in (Demo Mode)",
+      userId: "demo-mode-session",
+      isDemoMode: true,
+    };
+  }
+
+  let search: AdminSearch = {};
+  try {
+    search = testSearch ?? Route.useSearch();
+  } catch {
+    search = testSearch ?? {};
+  }
+
+  const isDemo = Boolean(context?.isDemoMode || search?.demo === 1);
   const { roles, adminEmail, userId } = context;
   const [activeTab, setActiveTab] = useState<"overview" | "complaints" | "projects" | "security">("overview");
 
@@ -173,6 +214,34 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       return setInviteError("Please enter a valid official email address.");
     }
+
+    if (isDemo) {
+      // Demo Admin Mode: Generate local mock invitation code (zero Supabase writes)
+      setInviteBusy(true);
+      const demoCode = `DEMO-INV-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const newInv = {
+        id: `demo-inv-${Date.now()}`,
+        email: cleanEmail,
+        role: inviteRole,
+        invitation_code: demoCode,
+        is_active: true,
+        expires_at: new Date(Date.now() + inviteDays * 86400000).toISOString(),
+        created_at: new Date().toISOString(),
+      };
+      setInvitationsList((prev) => [newInv, ...prev]);
+      setInviteResult({
+        success: true,
+        message: "Demo invitation code generated locally (not written to Supabase).",
+        invitation_code: demoCode,
+        role: inviteRole,
+        email: cleanEmail,
+        expires_at: newInv.expires_at,
+      });
+      setInviteEmail("");
+      setInviteBusy(false);
+      return;
+    }
+
     setInviteBusy(true);
     try {
       const { data, error } = await supabase.rpc("create_admin_invitation", {
@@ -207,6 +276,41 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
   const loadData = async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
     else setLoading(true);
+
+    if (isDemo) {
+      // Demo Admin Mode: Load isolated mock complaints and projects without querying Supabase
+      const demoComplaints = loadDemoAdminComplaints();
+      setComplaints(
+        demoComplaints.map((c) => ({
+          id: c.id,
+          trackingId: c.trackingId,
+          department: c.department,
+          issueType: c.issueType,
+          description: c.description,
+          location: c.location,
+          lat: c.lat,
+          lng: c.lng,
+          photoName: c.photoName,
+          videoName: c.videoName,
+          evidence_path: c.evidence_path,
+          project_id: c.project_id,
+          submittedAt: c.submittedAt,
+          updatedAt: c.updatedAt,
+          status: c.status,
+          severity: c.severity,
+          citizen_contact: c.citizen_contact,
+          internal_notes: c.internal_notes,
+          public_resolution_summary: c.public_resolution_summary,
+          assigned_officer_id: c.assigned_officer_id,
+        }))
+      );
+      setProjects(PROJECTS);
+      setIsLiveDb(false);
+      setMigrationMissing(false);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
     try {
       // 1. Fetch complaints from real Supabase table with department isolation
@@ -391,6 +495,21 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
     setInvestigationDetails(null);
     setInvestigationError(null);
 
+    if (isDemo) {
+      // Demo Admin Mode: populate investigation details immediately from mock record (no DB access)
+      setInvestigationDetails({
+        id: complaint.id,
+        tracking_id: complaint.trackingId,
+        department: complaint.department,
+        citizen_contact: complaint.citizen_contact,
+        internal_notes: complaint.internal_notes,
+        resolution_remarks: complaint.public_resolution_summary,
+        severity: complaint.severity,
+        assigned_officer_id: complaint.assigned_officer_id,
+      });
+      return;
+    }
+
     if (isLiveDb && complaint.id) {
       setInvestigationLoading(true);
       try {
@@ -438,6 +557,50 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
     }
 
     setStatusUpdating(true);
+
+    if (isDemo) {
+      // Demo Admin Mode: Local storage updates only; zero mutations to Supabase
+      updateDemoAdminComplaintStatus(
+        selectedComplaint.trackingId,
+        newStatus,
+        newSeverity,
+        noteTrimmed,
+        internalNote.trim() || undefined,
+        publicResolutionSummary.trim() || undefined
+      );
+
+      setComplaints((prev) =>
+        prev.map((c) =>
+          c.trackingId === selectedComplaint.trackingId
+            ? {
+                ...c,
+                status: newStatus,
+                severity: newSeverity,
+                internal_notes: internalNote.trim() || c.internal_notes,
+                public_resolution_summary: publicResolutionSummary.trim() || c.public_resolution_summary,
+                updatedAt: new Date().toISOString(),
+              }
+            : c
+        )
+      );
+
+      setSelectedComplaint((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: newStatus,
+              severity: newSeverity,
+              internal_notes: internalNote.trim() || prev.internal_notes,
+              public_resolution_summary: publicResolutionSummary.trim() || prev.public_resolution_summary,
+              updatedAt: new Date().toISOString(),
+            }
+          : null
+      );
+
+      setStatusUpdateSuccess(`Status transitioned to "${newStatus}" in local demo state. (Zero Supabase writes)`);
+      setStatusUpdating(false);
+      return;
+    }
 
     if (isLiveDb && selectedComplaint.id) {
       try {
@@ -518,10 +681,49 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
   const resolvedCount = complaints.filter((c) => c.status === "Resolved").length;
   const totalProjects = projects.length;
 
+  // Department Jurisdiction Summaries
+  const departmentSummaries = useMemo<DepartmentSummary[]>(() => {
+    return getDepartmentSummaries(complaints as any);
+  }, [complaints]);
+
   return (
     <div className="min-h-screen bg-background">
+      {/* Demo Mode Persistent Notice Banner */}
+      {isDemo && (
+        <aside aria-label="Demo Mode Notice" className="sticky top-0 z-50 border-b border-amber-600/30 bg-amber-500 px-4 py-2.5 text-xs font-semibold text-amber-950 shadow-sm">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-950" />
+              <span className="font-bold tracking-wide">DEMO DATA — NOT LIVE CITIZEN RECORDS</span>
+              <span className="hidden md:inline font-normal text-amber-900">
+                · Safe evaluation sandbox for mentors. All updates persist only in local browser state; zero mutations sent to Supabase.
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  resetDemoAdminComplaints();
+                  loadData();
+                }}
+                className="flex items-center gap-1.5 rounded bg-amber-600/20 px-2.5 py-1 text-xs font-medium text-amber-950 transition-colors hover:bg-amber-600/30"
+                title="Reset mock complaints back to original demo state"
+              >
+                <RotateCcw className="h-3 w-3" /> Reset Demo Data
+              </button>
+              <Link
+                to="/admin-login"
+                className="flex items-center gap-1.5 rounded bg-amber-950 px-3 py-1 text-xs font-bold text-amber-50 shadow-sm transition-colors hover:bg-amber-900"
+              >
+                <LogOut className="h-3 w-3" /> Exit Demo
+              </Link>
+            </div>
+          </div>
+        </aside>
+      )}
+
       {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur">
+      <header className="border-b bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -530,7 +732,11 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
               </span>
               <h1 className="text-lg font-bold text-primary font-display">ROAD-TRACK Admin Portal</h1>
             </div>
-            {isLiveDb ? (
+            {isDemo ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-2.5 py-0.5 text-xs font-bold text-amber-800 dark:text-amber-300">
+                <Sparkles className="h-3 w-3 text-amber-600 dark:text-amber-400" /> DEMO ADMIN MODE
+              </span>
+            ) : isLiveDb ? (
               <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-semibold text-accent">
                 <span className="h-2 w-2 rounded-full bg-accent animate-pulse" /> Live DB (RLS Active)
               </span>
@@ -553,16 +759,26 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
               <span className="hidden sm:inline">Refresh</span>
             </button>
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut();
-                window.location.assign("/admin-login");
-              }}
-              className="btn-outline !py-1.5 !px-2.5 text-xs text-destructive hover:bg-destructive/10 flex items-center gap-1.5"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span>Log out</span>
-            </button>
+            {isDemo ? (
+              <Link
+                to="/admin-login"
+                className="btn-outline !py-1.5 !px-2.5 text-xs text-destructive hover:bg-destructive/10 flex items-center gap-1.5 font-medium"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Exit Demo</span>
+              </Link>
+            ) : (
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.assign("/admin-login");
+                }}
+                className="btn-outline !py-1.5 !px-2.5 text-xs text-destructive hover:bg-destructive/10 flex items-center gap-1.5"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Log out</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -641,17 +857,19 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
             <span className="text-xs text-muted-foreground">
               {isLiveDb
                 ? "— Enforced at database level by PostgreSQL RLS."
+                : isDemo
+                ? "— Demo evaluation sandbox (isolated mock records; Supabase mutations disabled)."
                 : "— Prototype mode (Execute migration in Supabase SQL Editor to activate live database)."}
             </span>
           </div>
 
           <div className="text-xs text-muted-foreground">
-            Official Officer ID: <span className="font-mono text-foreground font-medium">{userId.slice(0, 8)}…</span>
+            Official Officer ID: <span className="font-mono text-foreground font-medium">{userId.slice(0, 8)}… {isDemo ? "(Mentor Demo Session)" : ""}</span>
           </div>
         </div>
 
         {/* Database Migration Pending Alert */}
-        {migrationMissing && (
+        {!isDemo && migrationMissing && (
           <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">
             <div className="flex items-center gap-2 font-semibold">
               <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -703,6 +921,63 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
                 <div className="text-xs font-medium text-muted-foreground">Resolved Issues</div>
                 <div className="mt-2 text-3xl font-bold font-display text-accent">{resolvedCount}</div>
                 <div className="mt-1 text-[11px] text-muted-foreground">Officially closed</div>
+              </div>
+            </div>
+
+            {/* Department Jurisdiction Summaries (State PWD, NHAI, PMGSY) */}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-primary" /> Department Jurisdiction Breakdown
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Complaint triage and road monitoring status segregated by official authority
+                  </p>
+                </div>
+                {isDemo && (
+                  <span className="text-[11px] font-medium text-amber-800 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded">
+                    DEMO DATA — NOT LIVE CITIZEN RECORDS
+                  </span>
+                )}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                {departmentSummaries.map((ds) => (
+                  <div key={ds.department} className="rounded-lg border bg-card p-4 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <div className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-primary" />
+                        {ds.department}
+                      </div>
+                      <span className="text-xs font-mono font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">
+                        {ds.totalComplaints} total
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded bg-muted/40 p-2">
+                        <span className="text-muted-foreground block text-[10px]">Submitted:</span>
+                        <span className="font-bold text-foreground">{ds.submitted}</span>
+                      </div>
+                      <div className="rounded bg-muted/40 p-2">
+                        <span className="text-muted-foreground block text-[10px]">Under Review:</span>
+                        <span className="font-bold text-blue-600 dark:text-blue-400">{ds.underReview}</span>
+                      </div>
+                      <div className="rounded bg-muted/40 p-2">
+                        <span className="text-muted-foreground block text-[10px]">In Progress:</span>
+                        <span className="font-bold text-amber-600 dark:text-amber-400">{ds.inProgress}</span>
+                      </div>
+                      <div className="rounded bg-muted/40 p-2">
+                        <span className="text-muted-foreground block text-[10px]">Resolved:</span>
+                        <span className="font-bold text-accent">{ds.resolved}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t text-[11px] text-muted-foreground">
+                      <span>Monitored Road Projects:</span>
+                      <span className="font-semibold text-foreground">{ds.activeProjects} active</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -787,13 +1062,23 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
         {/* TAB 2: COMPLAINTS MANAGEMENT */}
         {activeTab === "complaints" && (
           <div className="space-y-4">
+            {isDemo && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>
+                    <strong>DEMO DATA — NOT LIVE CITIZEN RECORDS.</strong> Showing isolated mock complaints across State PWD, NHAI, and PMGSY. Status updates persist only in local browser state.
+                  </span>
+                </div>
+              </div>
+            )}
             {/* Filter & Search Bar */}
             <div className="rounded-lg border bg-card p-4 shadow-sm space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                 <div className="flex items-baseline gap-2">
                   <h2 className="font-semibold text-foreground">Complaint Management Registry</h2>
                   <span className="text-xs text-muted-foreground">
-                    {isLiveDb ? "(Official Database Records)" : "(Offline Demo Preview)"}
+                    {isLiveDb ? "(Official Database Records)" : isDemo ? "(Demo Mock Records)" : "(Offline Demo Preview)"}
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -1002,13 +1287,23 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
         {/* TAB 3: ROAD PROJECTS */}
         {activeTab === "projects" && (
           <div className="space-y-4">
+            {isDemo && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>
+                    <strong>DEMO DATA — NOT LIVE CITIZEN RECORDS.</strong> Demonstration road projects registry across State PWD, NHAI, and PMGSY.
+                  </span>
+                </div>
+              </div>
+            )}
             {/* Filter Bar */}
             <div className="rounded-lg border bg-card p-4 shadow-sm space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                 <div className="flex items-baseline gap-2">
                   <h2 className="font-semibold text-foreground">Infrastructure Road Projects Registry</h2>
                   <span className="text-xs text-muted-foreground">
-                    {isLiveDb ? "(Official Database Records)" : "(Offline Demo Preview)"}
+                    {isLiveDb ? "(Official Database Records)" : isDemo ? "(Demo Mock Records)" : "(Offline Demo Preview)"}
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -1177,6 +1472,16 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
         {/* TAB 4: JURISDICTION & RLS SECURITY */}
         {activeTab === "security" && (
           <div className="space-y-6">
+            {isDemo && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>
+                    <strong>DEMO DATA — NOT LIVE CITIZEN RECORDS.</strong> Simulating Central Admin role with multi-department jurisdiction access. Officer invitations created here generate local demo codes.
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="rounded-lg border bg-card p-6 shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b pb-4">
                 <ShieldCheck className="h-6 w-6 text-accent" />
@@ -1291,6 +1596,11 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
                         Copy Code
                       </button>
                     </div>
+                    {inviteResult.message && (
+                      <p className="text-xs text-accent font-semibold">
+                        {inviteResult.message}
+                      </p>
+                    )}
                     <div className="font-mono text-lg font-bold text-primary p-2 bg-card rounded border">
                       {inviteResult.invitation_code}
                     </div>
@@ -1371,6 +1681,15 @@ export function AdminPage({ testContext }: AdminPageProps = {}) {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {isDemo && (
+              <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>
+                  <strong>DEMO DATA — NOT LIVE CITIZEN RECORDS.</strong> Status transitions will be saved locally in your browser. Zero writes to Supabase.
+                </span>
+              </div>
+            )}
 
             {/* Modal Content Grid */}
             <div className="mt-4 grid gap-6 md:grid-cols-2">

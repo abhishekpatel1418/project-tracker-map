@@ -336,6 +336,13 @@ describe("Admin Auth & Authorization Flow", () => {
         expect(screen.getByText(/Invitation code has expired or was already claimed/i)).toBeInTheDocument();
       });
     });
+
+    it("renders prominent 'Try Demo Admin' callout and button pointing to /admin with demo search param", () => {
+      render(<AdminLoginPage />);
+      expect(screen.getByText(/Hackathon & Mentor Review Mode/i)).toBeInTheDocument();
+      const demoBtn = screen.getByRole("link", { name: /Try Demo Admin/i });
+      expect(demoBtn).toBeInTheDocument();
+      expect(demoBtn).toHaveAttribute("href", "/admin");
+    });
   });
 });
-

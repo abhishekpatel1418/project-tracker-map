@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { ShieldCheck, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchMyRoles } from "@/lib/auth";
 
@@ -218,6 +219,25 @@ export function AdminLoginPage({ testSearch }: { testSearch?: Search } = {}) {
             </div>
           )}
         </form>
+
+        {/* Hackathon Mentor Presentation Demo Callout */}
+        <div className="mt-6 rounded-lg border-2 border-dashed border-accent/60 bg-accent/5 p-4 text-center">
+          <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-accent uppercase tracking-wider">
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Hackathon & Mentor Review Mode</span>
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+            Inspect the complete officer dashboard, cross-department jurisdiction queues, and grievance review workflows with safe mock data. No credentials or live database required.
+          </p>
+          <Link
+            to="/admin"
+            search={{ demo: 1 }}
+            className="btn-accent mt-3 inline-flex w-full items-center justify-center gap-2 !py-2.5 text-xs font-semibold shadow-sm"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Try Demo Admin
+          </Link>
+        </div>
 
         <div className="mt-6 rounded border bg-muted/50 p-3 text-xs text-muted-foreground leading-relaxed">
           <strong className="text-foreground">Official Security Architecture:</strong> Administrative roles (Central Admin, PWD, NHAI, or PMGSY officer) are read securely from the server after sign-in. To configure an admin account, assign the role directly in the <code className="font-mono text-[11px]">public.user_roles</code> database table. There is no public self-registration.
