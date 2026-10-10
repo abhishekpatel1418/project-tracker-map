@@ -4,8 +4,11 @@ import { CheckCircle2, Copy, LocateFixed } from "lucide-react";
 import { DemoBadge } from "@/components/badges";
 import { ISSUE_TYPES, addComplaint, type Complaint, type IssueType } from "@/lib/complaints";
 import { getProject } from "@/lib/demo-data";
+import { requireAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/report")({
+  ssr: false,
+  beforeLoad: requireAuth,
   validateSearch: (s: Record<string, unknown>): { project?: string } => (typeof s["project"] === "string" ? { project: s["project"] } : {}),
   head: () => ({
     meta: [
@@ -106,7 +109,7 @@ function ReportPage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm"><span className="mb-1 block font-medium">Photo</span>
-            <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} className="input-field file:mr-2 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1" /></label>
+            <input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} className="input-field file:mr-2 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1" /></label>
           <label className="block text-sm"><span className="mb-1 block font-medium">Video</span>
             <input type="file" accept="video/*" onChange={(e) => setVideo(e.target.files?.[0] ?? null)} className="input-field file:mr-2 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1" /></label>
         </div>

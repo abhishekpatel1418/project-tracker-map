@@ -3,8 +3,11 @@ import { MapPinned, FileWarning, SearchCheck, ShieldCheck } from "lucide-react";
 import hero from "@/assets/hero-road.jpg";
 import { DemoBadge } from "@/components/badges";
 import { PROJECTS } from "@/lib/demo-data";
+import { requireAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
+  ssr: false,
+  beforeLoad: requireAuth,
   head: () => ({
     meta: [
       { title: "ROAD-TRACK – Know the Road. Track the Project. Raise the Issue." },
